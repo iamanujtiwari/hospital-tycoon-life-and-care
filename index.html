@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hospital Tycoon: Life & Care</title>
+  <style>
+    :root { --bg: #0b1420; --pn: rgba(12,22,34,.86); --bd: rgba(120,160,200,.22); --ac: #2dd4bf; --ac2: #3b82f6; --tx: #e8eef5; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1420; font-family: Inter, 'Segoe UI', system-ui, sans-serif; color: var(--tx); }
+    #game { position: fixed; inset: 0; }
+    #hud, #goal, #prompt, #toast { backdrop-filter: blur(10px); border: 1px solid var(--bd); box-shadow: 0 8px 30px rgba(0,0,0,.35); }
+    #hud { position: fixed; top: 14px; left: 14px; background: var(--pn); padding: 12px 16px; border-radius: 14px; font-size: 13px; pointer-events: none; width: 262px; display: none; }
+    #hud .money { font-size: 26px; font-weight: 700; letter-spacing: .3px; color: #fff; } #hud .sub { opacity: .75; margin: 2px 0 8px; } #hud .rep span { font-size: 12px; opacity: .85; }
+    #hud .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; } #hud .chips span { background: rgba(255,255,255,.07); border-radius: 999px; padding: 3px 9px; font-size: 11.5px; } #hud .chips .on { background: rgba(45,212,191,.25); color: #7ff0df; }
+    #goal { position: fixed; bottom: 14px; left: 14px; background: var(--pn); padding: 9px 14px; border-radius: 12px; font-size: 12.5px; pointer-events: none; display: none; max-width: 360px; }
+    #goal b { color: #7ff0df; }
+    #prompt { position: fixed; bottom: 17%; left: 50%; transform: translateX(-50%); background: var(--pn); padding: 9px 18px; border-radius: 12px; display: none; text-align: center; font-weight: 600; }
+    kbd { display: inline-block; background: var(--ac); color: #06231f; border-radius: 6px; padding: 1px 8px; margin-right: 8px; font-weight: 800; box-shadow: 0 2px 0 rgba(0,0,0,.4); }
+    #cross { position: fixed; top: 50%; left: 50%; width: 4px; height: 4px; margin: -2px; border-radius: 50%; background: #fff; opacity: .75; box-shadow: 0 0 0 1px rgba(0,0,0,.45); display: none; }
+    #toast { position: fixed; top: 16px; right: 16px; background: linear-gradient(135deg, #0f766e, #1d4ed8); padding: 11px 18px; border-radius: 12px; display: none; max-width: 380px; font-weight: 500; }
+    #dashboard { position: fixed; inset: 5% 6%; background: rgba(10,18,28,.97); border: 1px solid var(--bd); border-radius: 16px; padding: 18px 24px; display: none; overflow: hidden; box-shadow: 0 20px 80px rgba(0,0,0,.6); }
+    #dashboard .dh { display: flex; gap: 14px; align-items: center; } #dashboard h2 { margin: 0; flex: 1; font-size: 20px; } #dashboard h2 small { opacity: .6; font-weight: 400; }
+    #dashboard .body { overflow: auto; height: calc(100% - 96px); padding-right: 6px; }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+    .tabs button { background: rgba(255,255,255,.06); color: #cfe0f2; border: 1px solid var(--bd); padding: 7px 13px; border-radius: 9px; cursor: pointer; transition: .15s; }
+    .tabs button.active, .tabs button:hover { background: var(--ac2); color: #fff; border-color: transparent; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .card { background: rgba(255,255,255,.045); border: 1px solid var(--bd); border-radius: 11px; padding: 11px 13px; }
+    .card .v { font-size: 20px; font-weight: 700; } .card .l { font-size: 12px; opacity: .7; } .card.wide { margin: 10px 0; }
+    table { border-collapse: collapse; width: 100%; font-size: 13px; margin-bottom: 10px; }
+    td, th { text-align: left; padding: 7px 8px; border-bottom: 1px solid rgba(120,160,200,.14); vertical-align: top; }
+    tr.dim { opacity: .55; } small { opacity: .65; } .soon { opacity: .65; font-size: 13px; }
+    .ok { color: #5fd39a; } .bad { color: #ff8a8a; } .lock { color: #e0a030; }
+    .act { background: linear-gradient(135deg, #2563eb, #3b82f6); color: #fff; border: 0; border-radius: 9px; padding: 7px 14px; cursor: pointer; font-weight: 500; transition: .15s; }
+    .act:hover:not(:disabled) { filter: brightness(1.15); transform: translateY(-1px); } .act:disabled { background: #25354a; color: #7d8da0; cursor: default; } .act.danger { background: #9b2c2c; }
+    .bar { height: 7px; background: rgba(255,255,255,.1); border-radius: 4px; overflow: hidden; margin: 4px 0 2px; } .bar i { display: block; height: 100%; border-radius: 4px; }
+    #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 30% 20%, rgba(45,212,191,.18), transparent 55%), radial-gradient(ellipse at 80% 80%, rgba(59,130,246,.2), transparent 55%), rgba(6,10,16,.88); }
+    #overlay > div { background: var(--pn); border: 1px solid var(--bd); padding: 30px 38px; border-radius: 20px; text-align: center; max-width: 480px; box-shadow: 0 30px 90px rgba(0,0,0,.6); }
+    #overlay h2 { font-size: 30px; margin: 0 0 6px; background: linear-gradient(90deg, #5eead4, #60a5fa); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    #overlay button { margin-top: 14px; padding: 11px 26px; font-size: 16px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #14b8a6, #3b82f6); color: #fff; cursor: pointer; font-weight: 600; }
+    #lift, #consult, #pharm, #proc { position: fixed; background: rgba(10,18,28,.97); border: 1px solid var(--bd); border-radius: 16px; padding: 16px 22px; display: none; box-shadow: 0 20px 80px rgba(0,0,0,.6); }
+    #lift, #consult, #pharm { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+    #lift { min-width: 330px; } #consult { min-width: min(900px, 96vw); max-height: 90vh; overflow: auto; } #pharm { min-width: 360px; max-width: min(600px, 94vw); }
+    #proc { bottom: 16px; left: 50%; transform: translateX(-50%); min-width: 340px; max-width: min(580px, 94vw); }
+    #lift h3, #consult h3, #pharm h3, #proc h3 { margin: 0 0 10px; }
+    .hint { font-size: 12px; opacity: .6; margin-top: 8px; } .flag td { background: rgba(255,138,138,.08); }
+    .imgbox { margin: 8px 0; } .imgbox img { max-width: 100%; max-height: 260px; border-radius: 8px; display: block; }
+    .ph { display: none; align-items: center; justify-content: center; text-align: center; height: 140px; border: 2px dashed #3c5775; border-radius: 10px; color: #7d8da0; }
+    .drug { width: 44px; height: 44px; border: 1px dashed #3c5775; border-radius: 8px; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; }
+    .drug img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; } .row { display: flex; gap: 8px; align-items: center; margin: 4px 0; flex-wrap: wrap; }
+    select, input[type=text], input:not([type]), textarea { background: #15243a; color: #e8eef5; border: 1px solid var(--bd); border-radius: 8px; padding: 7px 9px; font: inherit; }
+    #story, #dept { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(10,18,28,.97); border: 1px solid var(--bd); border-radius: 16px; padding: 18px 24px; display: none; box-shadow: 0 20px 80px rgba(0,0,0,.6); max-height: 90vh; overflow: auto; }
+    #story { width: min(640px, 94vw); } #dept { width: min(860px, 96vw); } #dept h3, #story h3 { margin: 0 0 10px; }
+    .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 6px 0; } #overlay input { background: #15243a; color: #fff; border: 1px solid var(--bd); border-radius: 8px; padding: 8px 10px; font: inherit; margin-top: 8px; }
+    #build { position: fixed; inset: 0; background: rgba(8,14,22,.82); display: none; } .bwrap { display: flex; height: 100%; } .bside { width: 300px; padding: 14px; overflow: auto; background: rgba(10,18,28,.97); border-right: 1px solid var(--bd); } #plan { flex: 1; min-width: 0; height: 100%; cursor: grab; }
+    .chart { display: flex; gap: 12px; align-items: center; background: rgba(255,255,255,.045); border: 1px solid var(--bd); border-radius: 12px; padding: 10px 12px; margin-bottom: 6px; } .vit { display: flex; gap: 8px; flex-wrap: wrap; max-width: 330px; } .vit span { background: rgba(255,255,255,.07); border-radius: 8px; padding: 4px 8px; font-weight: 600; font-size: 12.5px; } .vit .bad { background: rgba(255,90,90,.2); }
+    #mon { width: 100%; height: 64px; border-radius: 8px; margin-bottom: 8px; } .exwrap { display: flex; gap: 16px; } .body .sk { fill: #cda37f; } .body .zn { fill: #d8b08c; stroke: #2dd4bf; stroke-opacity: .35; cursor: pointer; } .body .zn:hover { fill: #2dd4bf; fill-opacity: .55; }
+    .chat { min-height: 90px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; } .bub { max-width: 80%; padding: 7px 11px; border-radius: 14px; font-size: 13px; } .bub.me { align-self: flex-end; background: #2563eb; } .bub.pt { align-self: flex-start; background: rgba(255,255,255,.1); }
+    .two { display: grid; grid-template-columns: 1.1fr 1fr; gap: 14px; } .rxpad { background: #f8f5ec; color: #1d2733; border-radius: 6px; padding: 14px 16px; font-size: 13px; line-height: 1.6; box-shadow: 0 4px 18px rgba(0,0,0,.4); } .rxpad .rxh { border-bottom: 2px solid #1d2733; margin-bottom: 6px; padding-bottom: 4px; } .rxpad .rxs { font-size: 30px; font-family: serif; } .rxpad .sig { margin-top: 14px; text-align: right; font-style: italic; border-top: 1px dashed #888; padding-top: 4px; } .rxpad small { color: #555; opacity: 1; }
+    .sw { width: 30px; height: 30px; border-radius: 8px; border: 2px solid rgba(255,255,255,.2); margin: 2px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div id="game"></div>
+  <div id="cross"></div>
+  <div id="hud"></div>
+  <div id="goal"></div>
+  <div id="prompt"></div>
+  <div id="toast"></div>
+  <div id="dashboard"></div>
+  <div id="lift"></div>
+  <div id="consult"></div>
+  <div id="pharm"></div>
+  <div id="proc"></div>
+  <div id="story"></div>
+  <div id="dept"></div>
+  <div id="build"></div>
+  <div id="overlay"><div>
+    <h2>Hospital Tycoon: Life &amp; Care</h2>
+    <p>Buy a clinic, see patients as the doctor, then add a lift, floors, machines and departments.</p>
+    <p style="font-size:13px;opacity:.8">WASD move · Mouse look · Shift run · E interact · B build mode (move furniture)<br>V first/third person · Esc leaves a screen</p>
+    <button id="start">Click to start</button>
+  </div></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
