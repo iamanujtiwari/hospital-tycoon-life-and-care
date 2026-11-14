@@ -9,11 +9,7 @@ A 3D hospital management and life simulation game built with **Three.js** and **
 ## 🌐 Live Experience
 
 <!-- VERCEL-LIVE-URL:START -->
-<p align="center">
-  <a href="https://your-hospital-tycoon.vercel.app">
-    <img src="https://img.shields.io/badge/🎮_PLAY_NOW-Visit_Live_Website-16a34a?style=for-the-badge" alt="Play Hospital Tycoon"/>
-  </a>
-</p>
+[Visit Live Website](https://hospital-tycoon-life-and-care-bhbtl3slf-iamanujtiwaris-projects.vercel.app)
 <!-- VERCEL-LIVE-URL:END -->
 
 ---
