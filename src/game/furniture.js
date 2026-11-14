@@ -4,28 +4,46 @@ import { ITEMS, COL } from '../data/catalog.js';
 import { MODELS } from './models.config.js';
 import { mat, mixers, loadGLB } from './people.js';
 import { FH } from './config.js';
+import { parseGIF, decompressFrames } from 'gifuct-js';
 
 export function createFurniture({ sc, C, S, slots, glass }) {
   const live = new Map(), own = new Set(), mats = {}, screens = {};
   const metallic = ['metal', 'steel'];
   const M = (k) => mats[k] || (mats[k] = typeof k == 'number' ? mat(k, .7) : k == 'lamp' ? new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4d6, emissiveIntensity: .9 }) : k == 'glass' ? glass : mat(COL[k] ?? 0x888888, metallic.includes(k) ? .35 : .7, metallic.includes(k) ? .7 : 0));
-  /* ----- screens: animated GIF / image drawn into a canvas texture ----- */
-  function screenMat(url, label) {
+  /* ----- screens: animated GIFs are decoded frame by frame (works in every browser), PNG/JPG drawn as-is ----- */
+  async function loadScreen(s) {
+    try {
+      const res = await fetch(s.url); if (!res.ok) { s.err = 'not found: public/' + s.url; return }
+      const buf = await res.arrayBuffer(), u8 = new Uint8Array(buf);
+      if (u8[0] == 71 && u8[1] == 73 && u8[2] == 70) {
+        const g = parseGIF(buf), fr = decompressFrames(g, true), W = g.lsd.width, H = g.lsd.height, comp = document.createElement('canvas'); comp.width = W; comp.height = H;
+        const cx = comp.getContext('2d'); let prev = null, total = 0; s.frames = [];
+        fr.forEach((f) => {
+          if (prev && prev.disposalType == 2) cx.clearRect(prev.dims.left, prev.dims.top, prev.dims.width, prev.dims.height);
+          const p = document.createElement('canvas'); p.width = f.dims.width; p.height = f.dims.height; p.getContext('2d').putImageData(new ImageData(f.patch, f.dims.width, f.dims.height), 0, 0); cx.drawImage(p, f.dims.left, f.dims.top);
+          const snap = document.createElement('canvas'); snap.width = W; snap.height = H; snap.getContext('2d').drawImage(comp, 0, 0);
+          let d = f.delay || 100; if (d < 20) d *= 10; total += d; s.frames.push({ c: snap, d }); prev = f;
+        });
+        s.total = total; s.ok = 1;
+      } else { const img = new Image(); img.onload = () => { s.img = img; s.ok = 1 }; img.onerror = () => { s.err = 'cannot read image' }; img.src = URL.createObjectURL(new Blob([buf])) }
+    } catch (e) { s.err = 'cannot load ' + s.url }
+  }
+  function screenMat(url, label, asp = 1.6) {
     if (screens[url]) return screens[url].m;
-    const c = document.createElement('canvas'); c.width = 320; c.height = 200; const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
-    const img = new Image(); img.style.cssText = 'position:fixed;left:-99px;top:0;width:2px;height:2px;opacity:.01;pointer-events:none';
-    const s = screens[url] = { c, x: c.getContext('2d'), t, img, ok: 0, label, m: new THREE.MeshBasicMaterial({ map: t }) };
-    img.onload = () => { s.ok = 1 }; img.onerror = () => { s.ok = 0 }; img.src = url; document.body.appendChild(img); return s.m;
+    const c = document.createElement('canvas'); c.width = asp >= 1 ? 400 : Math.round(400 * asp); c.height = asp >= 1 ? Math.round(400 / asp) : 400; const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+    const s = screens[url] = { c, x: c.getContext('2d'), t, ok: 0, label, url, m: new THREE.MeshBasicMaterial({ map: t }) }; loadScreen(s); return s.m;
   }
   let acc = 0;
   function update(dt) {
-    acc += dt; if (acc < .1) return; acc = 0; const k = performance.now() / 1000, w = 320, h = 200;
-    Object.entries(screens).forEach(([url, s]) => {
-      const x = s.x;
-      if (s.ok) x.drawImage(s.img, 0, 0, w, h);
+    acc += dt; if (acc < .05) return; acc = 0; const k = performance.now() / 1000;
+    Object.values(screens).forEach((s) => {
+      const x = s.x, w = s.c.width, h = s.c.height;
+      if (s.ok && s.frames) { let t = performance.now() % s.total, i = 0; while (i < s.frames.length - 1 && t >= s.frames[i].d) { t -= s.frames[i].d; i++ } x.drawImage(s.frames[i].c, 0, 0, w, h) }
+      else if (s.ok && s.img) x.drawImage(s.img, 0, 0, w, h);
       else {
         const g = x.createLinearGradient(0, 0, w, h); g.addColorStop(0, `hsl(${(k * 30) % 360},55%,22%)`); g.addColorStop(1, `hsl(${(k * 30 + 90) % 360},55%,34%)`); x.fillStyle = g; x.fillRect(0, 0, w, h);
-        x.fillStyle = 'rgba(255,255,255,.14)'; x.fillRect((k * 60) % (w + 80) - 40, 0, 40, h); x.fillStyle = '#fff'; x.textAlign = 'center'; x.font = 'bold 18px system-ui'; x.fillText(s.label, w / 2, h / 2 - 6); x.font = '12px system-ui'; x.fillText('add public/' + url, w / 2, h / 2 + 16);
+        x.fillStyle = 'rgba(255,255,255,.14)'; x.fillRect((k * 60) % (w + 80) - 40, 0, 40, h); x.fillStyle = '#fff'; x.textAlign = 'center'; x.font = `bold ${Math.round(w / 18)}px system-ui`; x.fillText(s.label, w / 2, h / 2 - 6);
+        x.font = `${Math.round(w / 30)}px system-ui`; x.fillText(s.err || (s.url.startsWith('data:') ? 'uploaded image' : 'loading ' + s.url), w / 2, h / 2 + 18);
       }
       s.t.needsUpdate = true;
     });
@@ -41,7 +59,7 @@ export function createFurniture({ sc, C, S, slots, glass }) {
       else if (k == 'w') { add(new THREE.CylinderGeometry(p[1] / 2, p[1] / 2, p[2], 14), M(p[6]), p[3], p[4], p[5]).rotation.z = Math.PI / 2 }
       else if (k == 's') { add(new THREE.SphereGeometry(p[1] / 2, 12, 10), M(p[5]), p[2], p[3], p[4]); top = Math.max(top, p[3] + p[1] / 2) }
       else if (k == 't') { add(new THREE.TorusGeometry(p[1], p[2], 14, 36), M(p[6]), p[3], p[4], p[5]); top = Math.max(top, p[4] + p[1] + p[2]) }
-      else if (k == 'scr') add(new THREE.PlaneGeometry(p[1], p[2]), screenMat(rec.img || 'gifs/' + (def.gif || rec.id) + '.gif', def.n), p[3], p[4], p[5], false);
+      else if (k == 'scr') add(new THREE.PlaneGeometry(p[1], p[2]), screenMat(rec.img || 'gifs/' + (def.gif || rec.id) + '.gif', def.n, p[1] / p[2]), p[3], p[4], p[5], false);
     });
     def.hh = def.hh || top || 1; return g;
   }
