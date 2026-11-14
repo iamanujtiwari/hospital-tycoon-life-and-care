@@ -3,6 +3,7 @@ import { store } from './game/store.js';
 import { startEngine } from './game/engine.js';
 import { initUI } from './ui/ui.js';
 
+
 THREE.ColorManagement.enabled = true; // correct sRGB colours
 store.load();
 const canvas = document.createElement('canvas');

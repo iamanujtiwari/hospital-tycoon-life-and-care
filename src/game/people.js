@@ -52,10 +52,16 @@ export function person(sc, c, role, look = {}) {
   if (url) loadGLB(url).then(({ scene, clips }) => {
     g.clear(); const b = new THREE.Box3().setFromObject(scene), s = 1.75 / (b.max.y - b.min.y);
     scene.scale.setScalar(s); scene.position.y = -b.min.y * s; g.add(scene);
-    const mx = new THREE.AnimationMixer(scene), act = {};
-    ['idle', 'walk', 'work'].forEach((k) => { const cl = clips.find((x) => x.name.toLowerCase().includes(k)); if (cl) act[k] = mx.clipAction(cl); });
-    u.mx = mx; u.act = act;
-  }).catch(() => {});
+    scene.traverse((o) => { if (o.isMesh) o.castShadow = true; });          // NEW: model casts shadows
+    const find = (n) => scene.getObjectByName(n);
+    if (find('ArmL') && find('LegL')) {                                      // NEW: jointed model (doctor.glb)
+      u.aL = find('ArmL'); u.aR = find('ArmR'); u.lL = find('LegL'); u.lR = find('LegR');   // reuse the swing animation in anim()
+    } else {                                                                 // model with baked animation clips
+      const mx = new THREE.AnimationMixer(scene), act = {};
+      ['idle', 'walk', 'work'].forEach((k) => { const cl = clips.find((x) => x.name.toLowerCase().includes(k)); if (cl) act[k] = mx.clipAction(cl); });
+      u.mx = mx; u.act = act;
+    }
+  }).catch((e) => console.error('model failed to load:', url, e));          // NEW: shows the real error in the console
   return g;
 }
 export function anim(m, dt, t) {
